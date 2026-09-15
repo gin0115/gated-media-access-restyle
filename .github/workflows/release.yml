@@ -1,0 +1,50 @@
+name: Release
+
+# Builds the installable zip and attaches it to the release that triggered this run.
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and attach the zip
+    runs-on: ubuntu-latest
+
+    env:
+      SLUG: gated-media-access-restyle
+
+    steps:
+      - name: Checkout the tag
+        uses: actions/checkout@v4
+
+      # A zip reporting the wrong version would never update past itself.
+      - name: Check the tag matches the plugin version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          HEADER=$(sed -n 's/^ \* Version:[[:space:]]*//p' "$SLUG.php" | head -n1 | tr -d '[:space:]')
+
+          echo "Tag:           $VERSION"
+          echo "Plugin header: $HEADER"
+
+          if [ "$HEADER" != "$VERSION" ]; then
+            echo "::error::'$HEADER' does not match the tag '$VERSION'. Refusing to build."
+            exit 1
+          fi
+
+      # WordPress installs into the single top level folder in the zip.
+      - name: Zip
+        run: |
+          mkdir -p "dist/$SLUG"
+          cp "$SLUG.php" README.md "dist/$SLUG/"
+          cd dist && zip -qr "../$SLUG.zip" "$SLUG"
+
+      - name: Attach the zip to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.SLUG }}.zip

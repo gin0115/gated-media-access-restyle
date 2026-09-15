@@ -1,0 +1,47 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Gated Media Access: Restyle",
+		"description": "Gated Media Access with its components restyled by a separate plugin.",
+		"author": "gin0115"
+	},
+	"landingPage": "/account/",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "setSiteOptions",
+			"options": {
+				"permalink_structure": "/%postname%/"
+			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "url",
+				"url": "https://github.com/a8cteam51/restrict-media-file-access/releases/latest/download/restrict-media-file-access.zip"
+			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "url",
+				"url": "https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin/releases/latest/download/gated-media-access.zip"
+			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "url",
+				"url": "https://github.com/gin0115/gated-media-access-restyle/releases/latest/download/gated-media-access-restyle.zip"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire '/wordpress/wp-load.php';\n\n$user      = get_user_by( 'login', 'admin' );\n$container = ( new \\Dice\\Dice() )->addRule( '*', array( 'shared' => true ) );\n$writer    = $container->create( \\PinkCrab\\Gated_Access\\Access\\Access_Writer::class );\n$taxonomy  = $container->create( \\PinkCrab\\Gated_Access\\Registration\\Access_Taxonomy::class );\n\n$group = wp_insert_term( 'Handbooks', 'gatedmedia_access' );\n\n$handbook = wp_insert_post( array( 'post_title' => 'Member handbook', 'post_content' => 'Everything a member needs to know.', 'post_status' => 'publish' ) );\n$briefing = wp_insert_post( array( 'post_title' => 'Quarterly briefing', 'post_content' => 'This quarter, in short.', 'post_status' => 'publish' ) );\n$notes    = wp_insert_post( array( 'post_title' => 'Field notes', 'post_content' => 'Notes from the field.', 'post_status' => 'publish' ) );\n\nwp_set_object_terms( $handbook, array( (int) $group['term_id'] ), 'gatedmedia_access' );\n\n$upload = wp_upload_bits( 'price-list.pdf', null, \"%PDF-1.4\\n% Demo price list\\n\" );\n$file   = wp_insert_attachment( array( 'post_title' => 'Price list', 'post_mime_type' => 'application/pdf', 'post_status' => 'inherit' ), $upload['file'] );\n\n$writer->grant( $user->ID, 'group', $taxonomy->uuid_for( (int) $group['term_id'] ), null, 'demo', 'group' );\n$writer->grant( $user->ID, 'post', (string) $briefing, 5, 'demo', 'briefing' );\n$writer->grant( $user->ID, 'post', (string) $notes, 60, 'demo', 'notes' );\n$writer->grant( $user->ID, 'file', (string) $file, null, 'demo', 'file' );\n\nflush_rewrite_rules();\n"
+		}
+	]
+}
