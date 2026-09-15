@@ -29,7 +29,7 @@
 			"step": "installPlugin",
 			"pluginData": {
 				"resource": "url",
-				"url": "https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin/releases/download/0.1.0-RC1/gated-media-access.zip"
+				"url": "https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin/releases/latest/download/gated-media-access.zip"
 			}
 		},
 		{
