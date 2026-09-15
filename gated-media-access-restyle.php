@@ -3,7 +3,7 @@
  * Plugin Name:       Gated Media Access: Restyle
  * Plugin URI:        https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin
  * Description:       Restyles the Gated Media Access components with its filters, core's block filters and CSS. The theme is left alone.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Requires at least: 6.4
  * Requires PHP:      8.3
  * Author:            Glynn Quelch
