@@ -1,14 +1,15 @@
 <?php
 /**
  * Plugin Name:       Gated Media Access: Restyle
- * Plugin URI:        https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin
- * Description:       Restyles the Gated Media Access components with its filters, core's block filters and CSS. The theme is left alone.
+ * Plugin URI:        https://github.com/gin0115/gated-media-access-restyle
+ * Description:       Rebuilds the Gated Media Access components with its filters, core's block filters and CSS. The theme is left alone.
  * Version:           0.1.0
  * Requires at least: 6.4
  * Requires PHP:      8.3
  * Author:            Glynn Quelch
  * License:           GPL v3 or later
  * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
+ * Text Domain:       gated-media-access-restyle
  *
  * @package PinkCrab\Gated_Access_Restyle
  */
@@ -17,12 +18,15 @@ declare( strict_types = 1 );
 
 namespace PinkCrab\Gated_Access_Restyle;
 
-use WP_HTML_Tag_Processor;
 use PinkCrab\Gated_Access\Account\Section;
 use PinkCrab\Gated_Access\Account\Section_Collection;
 use PinkCrab\Gated_Access\Assets\Asset_Loader;
+use PinkCrab\Gated_Access\Support\Account_Url;
 
 defined( 'ABSPATH' ) || exit;
+
+require_once __DIR__ . '/render.php';
+require_once __DIR__ . '/overview.php';
 
 add_action(
 	'plugins_loaded',
@@ -32,21 +36,21 @@ add_action(
 			return;
 		}
 
-		// Styles, on the handle every block declares.
 		add_action( 'init', __NAMESPACE__ . '\\add_css', 20 );
+		add_action( 'init', __NAMESPACE__ . '\\register_overview_block', 20 );
 
-		// Block attributes, before a block renders.
-		add_filter( 'render_block_data', __NAMESPACE__ . '\\block_data' );
-
-		// Block markup, after it renders.
-		add_filter( 'render_block_gated-media-access/row', __NAMESPACE__ . '\\index_row', 10, 2 );
-		add_filter( 'render_block_gated-media-access/status-pill', __NAMESPACE__ . '\\dot_pill', 10, 2 );
-		add_filter( 'render_block_gated-media-access/button', __NAMESPACE__ . '\\arrow_button', 10, 2 );
+		// Each component rebuilt after it renders. See render.php.
+		add_filter( 'render_block_gated-media-access/row', __NAMESPACE__ . '\\render_row', 10, 2 );
+		add_filter( 'render_block_gated-media-access/account-nav', __NAMESPACE__ . '\\render_nav', 10, 2 );
+		add_filter( 'render_block_gated-media-access/section-heading', __NAMESPACE__ . '\\render_heading', 10, 2 );
+		add_filter( 'render_block_gated-media-access/expiry', __NAMESPACE__ . '\\render_expiry', 10, 2 );
+		add_filter( 'render_block_gated-media-access/status-pill', __NAMESPACE__ . '\\render_pill', 10, 2 );
+		add_filter( 'render_block_gated-media-access/empty-state', __NAMESPACE__ . '\\render_empty', 10, 2 );
+		add_filter( 'render_block_gated-media-access/field', __NAMESPACE__ . '\\render_field', 10, 2 );
 
 		// Gated Media Access filters.
 		add_filter( 'gatedmedia_account_sections', __NAMESPACE__ . '\\sections' );
-		add_filter( 'gatedmedia_my_access_data', __NAMESPACE__ . '\\my_access', 20 );
-		add_filter( 'gatedmedia_format_price', __NAMESPACE__ . '\\price' );
+		add_filter( 'gatedmedia_my_access_data', __NAMESPACE__ . '\\soonest_first', 20 );
 		add_filter( 'gatedmedia_expiry_soon_days', static fn (): int => 14 );
 	},
 	20
@@ -64,142 +68,157 @@ function add_css(): void {
 }
 
 /**
- * Changes attributes before a block renders.
- *
- * @param array<string, mixed> $parsed The parsed block.
- * @return array<string, mixed>
- */
-function block_data( array $parsed ): array {
-	$name = (string) ( $parsed['blockName'] ?? '' );
-
-	// Active access reads as Live, unless the caller named its own label.
-	if ( 'gated-media-access/status-pill' === $name
-		&& 'active' === ( $parsed['attrs']['value'] ?? 'active' )
-		&& '' === (string) ( $parsed['attrs']['label'] ?? '' ) ) {
-		$parsed['attrs']['label'] = 'Live';
-	}
-
-	if ( 'gated-media-access/empty-state' === $name ) {
-		$parsed['attrs']['icon'] = 'i-info';
-	}
-
-	return $parsed;
-}
-
-/**
- * Puts a numbered tab on the front of every row.
- *
- * @param string               $content The rendered row.
- * @param array<string, mixed> $block   The parsed block.
- */
-function index_row( string $content, array $block ): string {
-	static $index = 0;
-
-	return (string) preg_replace(
-		'/<div class="gatedmedia-row__main">/',
-		sprintf( '<span class="restyle-row__index" aria-hidden="true">%02d</span>$0', ++$index ),
-		$content,
-		1
-	);
-}
-
-/**
- * Swaps the pill's icon for a dot, and marks the pill with its value.
- *
- * @param string               $content The rendered pill.
- * @param array<string, mixed> $block   The parsed block.
- */
-function dot_pill( string $content, array $block ): string {
-	$content = (string) preg_replace(
-		'#<svg class="gatedmedia-icon[^"]*"[^>]*>.*?</svg>#s',
-		'<span class="restyle-pill__dot" aria-hidden="true"></span>',
-		$content,
-		1
-	);
-
-	$tags = new WP_HTML_Tag_Processor( $content );
-
-	if ( $tags->next_tag( array( 'class_name' => 'gatedmedia-status-pill' ) ) ) {
-		$tags->add_class( 'restyle-pill--' . sanitize_html_class( (string) ( $block['attrs']['value'] ?? 'active' ) ) );
-	}
-
-	return $tags->get_updated_html();
-}
-
-/**
- * An arrow after the label of every primary button.
- *
- * @param string               $content The rendered button.
- * @param array<string, mixed> $block   The parsed block.
- */
-function arrow_button( string $content, array $block ): string {
-	if ( 'primary' !== ( $block['attrs']['variant'] ?? 'primary' ) ) {
-		return $content;
-	}
-
-	return (string) preg_replace(
-		'#</span>(\s*</(?:a|button)>)#',
-		'</span><span class="restyle-button__arrow" aria-hidden="true">&rarr;</span>$1',
-		$content,
-		1
-	);
-}
-
-/**
- * Renames two sections. Reusing a slug replaces that section.
+ * Adds the Overview section. Position 5 puts it first, so the account area lands on it.
  *
  * @param Section_Collection $sections The sections so far.
  */
 function sections( Section_Collection $sections ): Section_Collection {
-	$names = array(
-		'my-access' => 'Library',
-		'files'     => 'Downloads',
+	return $sections->add(
+		new Section(
+			slug:       'overview',
+			title:      __( 'Overview', 'gated-media-access-restyle' ),
+			menu_label: __( 'Overview', 'gated-media-access-restyle' ),
+			block:      'gatedmedia-restyle/overview',
+			position:   5,
+			icon:       'i-groups',
+		)
 	);
-
-	foreach ( $names as $slug => $name ) {
-		$section = $sections->get( $slug );
-
-		if ( null === $section ) {
-			continue;
-		}
-
-		$sections = $sections->add(
-			new Section(
-				slug:        $section->slug(),
-				title:       $name,
-				menu_label:  $name,
-				block:       $section->block(),
-				position:    $section->position(),
-				description: $section->description(),
-				icon:        $section->icon(),
-			)
-		);
-	}
-
-	return $sections;
 }
 
 /**
- * Every My Access list in title order.
+ * Whatever runs out soonest comes first, then by title.
  *
  * @param array<string, mixed> $data The My Access data.
  * @return array<string, mixed>
  */
-function my_access( array $data ): array {
+function soonest_first( array $data ): array {
+	$rank = array(
+		'soon'     => 0,
+		'dated'    => 1,
+		'lifetime' => 2,
+	);
+
 	foreach ( array( 'groups', 'posts', 'files' ) as $list ) {
-		if ( is_array( $data[ $list ] ?? null ) ) {
-			usort( $data[ $list ], static fn ( array $a, array $b ): int => strcmp( (string) $a['title'], (string) $b['title'] ) );
+		if ( ! is_array( $data[ $list ] ?? null ) ) {
+			continue;
 		}
+
+		usort(
+			$data[ $list ],
+			static fn ( array $a, array $b ): int => ( ( $rank[ $a['expiry_state'] ?? '' ] ?? 1 ) <=> ( $rank[ $b['expiry_state'] ?? '' ] ?? 1 ) )
+				?: strcmp( (string) $a['title'], (string) $b['title'] )
+		);
 	}
 
 	return $data;
 }
 
 /**
- * Whole amounts without the zero pence: £15.00 becomes £15.
+ * What the person holds, from the plugin's own filter. Once per request.
  *
- * @param string $formatted The plugin's own formatting.
+ * @return array<string, mixed>
  */
-function price( string $formatted ): string {
-	return (string) preg_replace( '/[.,]00(?!\d)/', '', $formatted );
+function held(): array {
+	static $held = null;
+
+	$held ??= (array) apply_filters(
+		'gatedmedia_my_access_data',
+		array(
+			'groups' => array(),
+			'posts'  => array(),
+			'files'  => array(),
+			'detail' => null,
+		),
+		''
+	);
+
+	return $held;
+}
+
+/**
+ * How many of each thing the person has, for the badges and the Overview. Once per request.
+ *
+ * @return array{groups: int, posts: int, files: int, available: int, past: int, orders: int}
+ */
+function counts(): array {
+	static $counts = null;
+
+	if ( null !== $counts ) {
+		return $counts;
+	}
+
+	$held   = held();
+	$files  = (array) apply_filters(
+		'gatedmedia_files_data',
+		array(
+			'available'   => array(),
+			'downloading' => array(),
+			'past'        => array(),
+		)
+	);
+	$orders = (array) apply_filters(
+		'gatedmedia_orders_data',
+		array(
+			'orders' => array(),
+			'detail' => null,
+		),
+		''
+	);
+
+	$counts = array(
+		'groups'    => count( (array) ( $held['groups'] ?? array() ) ),
+		'posts'     => count( (array) ( $held['posts'] ?? array() ) ),
+		'files'     => count( (array) ( $held['files'] ?? array() ) ),
+		'available' => count( (array) ( $files['available'] ?? array() ) ),
+		'past'      => count( (array) ( $files['past'] ?? array() ) ),
+		'orders'    => count( (array) ( $orders['orders'] ?? array() ) ),
+	);
+
+	return $counts;
+}
+
+/**
+ * The count shown against each nav link, keyed by the link.
+ *
+ * @return array<string, int>
+ */
+function nav_counts(): array {
+	$counts = counts();
+
+	return array(
+		Account_Url::section( 'my-access' ) => $counts['groups'] + $counts['posts'] + $counts['files'],
+		Account_Url::section( 'files' )     => $counts['available'],
+		Account_Url::section( 'orders' )    => $counts['orders'],
+	);
+}
+
+/**
+ * The count shown against a section heading, by its text, or null for none.
+ *
+ * @param string $text The heading text.
+ */
+function heading_count( string $text ): ?int {
+	$counts = counts();
+
+	$map = array(
+		__( 'Groups', 'gated-media-access' )      => $counts['groups'],
+		__( 'Posts', 'gated-media-access' )       => $counts['posts'],
+		__( 'Files', 'gated-media-access' )       => $counts['files'],
+		__( 'Available', 'gated-media-access' )   => $counts['available'],
+		__( 'Past access', 'gated-media-access' ) => $counts['past'],
+	);
+
+	return $map[ $text ] ?? null;
+}
+
+/**
+ * Up to two initials for a name.
+ *
+ * @param string $name The name.
+ */
+function initials( string $name ): string {
+	$words = preg_split( '/\s+/', trim( $name ) );
+	$first = is_array( $words ) ? array_slice( array_filter( $words ), 0, 2 ) : array();
+
+	return mb_strtoupper( implode( '', array_map( static fn ( string $word ): string => mb_substr( $word, 0, 1 ), $first ) ) );
 }

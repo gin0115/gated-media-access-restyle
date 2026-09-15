@@ -1,8 +1,8 @@
 # Gated Media Access: Restyle
 
-Restyles the [Gated Media Access](https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin) components from a separate plugin. Nothing in Gated Media Access is edited, and the theme is left alone.
+Rebuilds the [Gated Media Access](https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin) front end from a separate plugin. Nothing in Gated Media Access is edited, and the theme is left alone.
 
-It uses all three ways in: CSS, core's block filters, and Gated Media Access's own filters.
+Most of the change is markup, not paint. The components are server-rendered blocks, so core's block filters rebuild them after they render; Gated Media Access's own filters add a section and change what is listed; CSS styles the result.
 
 **[Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/gin0115/gated-media-access-restyle/main/blueprint.json)**
 
@@ -15,39 +15,48 @@ It uses all three ways in: CSS, core's block filters, and Gated Media Access's o
 | ![Orders, before](screenshots/before-orders.jpg) | ![Orders, after](screenshots/after-orders.jpg) |
 | ![Profile, before](screenshots/before-profile.jpg) | ![Profile, after](screenshots/after-profile.jpg) |
 
+And a page Gated Media Access does not have at all:
+
+![The Overview section](screenshots/after-overview.jpg)
+
 ## What it changes
 
-### CSS
+### Block rebuilds, in `render.php`
 
-Added to the `gatedmedia-front` handle with `wp_add_inline_style()`, which every Gated Media Access block already loads. It redefines the `--gatedmedia-*` custom properties and restyles the `.gatedmedia-*` classes: the account shell, nav, rows, buttons, pills, expiry, notices, empty state, fields and cards.
+Each runs on core's `render_block_gated-media-access/{name}` filter.
 
-### Block filters
-
-Every component is a server-rendered block, so core's block filters reach all of them.
-
-| Filter | Change |
+| Block | Rebuilt as |
 | --- | --- |
-| `render_block_data` | An active status pill reads Live. Empty states use the info icon. |
-| `render_block_gated-media-access/row` | A numbered tab on the front of every row. |
-| `render_block_gated-media-access/status-pill` | The icon becomes a dot, and the pill gets a class per status for its colour. |
-| `render_block_gated-media-access/button` | An arrow after the label of every primary button. |
+| `row` | A card with a coloured initial tile. Keeps `gatedmedia-row` and `data-gatedmedia-type`, so the Files search and type filter still work. |
+| `account-nav` | The same links with a count against each, and a user card above the sidebar form. |
+| `section-heading` | The heading with a count beside it. |
+| `expiry`, `status-pill` | Dot badges, coloured by state. |
+| `empty-state` | An illustration and a button back to the site. |
+| `field` | A floating label: the label moves after its input. |
 
 ### Gated Media Access filters
 
 | Filter | Change |
 | --- | --- |
-| `gatedmedia_account_sections` | My Access is renamed Library, and Files is renamed Downloads. |
-| `gatedmedia_my_access_data` | Groups, posts and files are listed by title. |
-| `gatedmedia_format_price` | Whole amounts drop the zero pence: £15.00 shows as £15. |
+| `gatedmedia_account_sections` | Adds an Overview section, first in the nav, so the account area lands on it. |
+| `gatedmedia_my_access_data` | Lists whatever runs out soonest first. Also read, with `gatedmedia_files_data` and `gatedmedia_orders_data`, for every count. |
 | `gatedmedia_expiry_soon_days` | The expiry warning starts 14 days out rather than 7. |
+
+### The Overview section, in `overview.php`
+
+A block of this plugin's own, named by the new section. It builds a greeting, four counts, what runs out soon and the latest orders from Gated Media Access's data filters, and draws them with Gated Media Access's own `row`, `expiry`, `price`, `status-pill` and `button` blocks, so the rebuilds above apply there too.
+
+### CSS, in `styles.css`
+
+Added to the `gatedmedia-front` handle, which every Gated Media Access block loads. It redefines the `--gatedmedia-*` custom properties, lays My Access and Files out as grids of cards, and styles everything the rebuilds add.
 
 Every hook Gated Media Access fires is documented in its [`docs/hooks.md`](https://github.com/Pink-Crab/PinkCrab-Gated-Media-Access-Plugin/blob/main/docs/hooks.md).
 
 ## Install
 
-Needs Gated Media Access 0.1.0-RC1 or later and [restrict-media-file-access](https://github.com/a8cteam51/restrict-media-file-access), both active.
+Needs Gated Media Access 0.1.0 or later and [restrict-media-file-access](https://github.com/a8cteam51/restrict-media-file-access), both active.
 
-Copy `gated-media-access-restyle.php` into `wp-content/plugins/` and activate it.
+Download `gated-media-access-restyle.zip` from the latest release and install it from Plugins, Add New.
 
 ## License
 

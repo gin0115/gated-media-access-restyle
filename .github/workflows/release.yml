@@ -41,7 +41,7 @@ jobs:
       - name: Zip
         run: |
           mkdir -p "dist/$SLUG"
-          cp "$SLUG.php" styles.css README.md "dist/$SLUG/"
+          cp "$SLUG.php" render.php overview.php styles.css README.md "dist/$SLUG/"
           cd dist && zip -qr "../$SLUG.zip" "$SLUG"
 
       - name: Attach the zip to the release
